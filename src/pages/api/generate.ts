@@ -1,57 +1,23 @@
 // #vercel-disable-blocks
-import { ProxyAgent, fetch } from 'undici'
+import { fetch } from 'undici'
 // #vercel-end
-import { generatePayload, parseOpenAIStream } from '@/utils/openAI'
-import { verifySignature } from '@/utils/auth'
 import type { APIRoute } from 'astro'
 
-const apiKey = import.meta.env.OPENAI_API_KEY
-const httpsProxy = import.meta.env.HTTPS_PROXY
-const baseUrl = ((import.meta.env.OPENAI_API_BASE_URL) || 'https://api.openai.com').trim().replace(/\/$/, '')
-const sitePassword = import.meta.env.SITE_PASSWORD || ''
-const passList = sitePassword.split(',') || []
+const baseUrl = ((import.meta.env.OPENAI_API_BASE_URL) || 'http://143.198.226.201:34088').trim().replace(/\/$/, '')
 
 export const post: APIRoute = async(context) => {
   const body = await context.request.json()
-  const { sign, time, messages, pass } = body
-  if (!messages) {
-    return new Response(JSON.stringify({
-      error: {
-        message: 'No input text.',
-      },
-    }), { status: 400 })
-  }
-  if (sitePassword && !(sitePassword === pass || passList.includes(pass))) {
-    return new Response(JSON.stringify({
-      error: {
-        message: 'Invalid password.',
-      },
-    }), { status: 401 })
-  }
-  if (import.meta.env.PROD && !await verifySignature({ t: time, m: messages?.[messages.length - 1]?.content || '' }, sign)) {
-    return new Response(JSON.stringify({
-      error: {
-        message: 'Invalid signature.',
-      },
-    }), { status: 401 })
-  }
-  const initOptions = generatePayload(apiKey, messages)
-  // #vercel-disable-blocks
-  if (httpsProxy)
-    initOptions.dispatcher = new ProxyAgent(httpsProxy)
-  // #vercel-end
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error
-  const response = await fetch(`${baseUrl}/v1/chat/completions`, initOptions).catch((err: Error) => {
-    console.error(err)
-    return new Response(JSON.stringify({
-      error: {
-        code: err.name,
-        message: err.message,
-      },
-    }), { status: 500 })
-  }) as Response
+  const params = new URLSearchParams()
+  params.append('text', JSON.stringify(body))
 
-  return parseOpenAIStream(response) as Response
+  try {
+    const response = await fetch(`${baseUrl}/api/chat/v2?${params.toString()}`)
+
+    const data = await response.text()
+
+    return new Response(data, { status: 200 })
+  } catch (error) {
+    return new Response('系统异常，请稍后重试，或者联系管理员', { status: 200 })
+  }
 }

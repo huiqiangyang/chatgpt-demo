@@ -1,6 +1,5 @@
 import { Index, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { useThrottleFn } from 'solidjs-use'
-import { generateSignature } from '@/utils/auth'
 import IconClear from './icons/Clear'
 import MessageItem from './MessageItem'
 import SystemRoleSettings from './SystemRoleSettings'
@@ -88,25 +87,14 @@ export default () => {
       const controller = new AbortController()
       setController(controller)
       const requestMessageList = [...messageList()]
-      if (currentSystemRoleSettings()) {
-        requestMessageList.unshift({
-          role: 'system',
-          content: currentSystemRoleSettings(),
-        })
-      }
       const timestamp = Date.now()
       const response = await fetch('/api/generate', {
         method: 'POST',
         body: JSON.stringify({
-          messages: requestMessageList,
+          messages: requestMessageList[requestMessageList.length - 1],
           time: timestamp,
           pass: storagePassword,
-          sign: await generateSignature({
-            t: timestamp,
-            m: requestMessageList?.[requestMessageList.length - 1]?.content || '',
-          }),
         }),
-        signal: controller.signal,
       })
       if (!response.ok) {
         const error = await response.json()
@@ -173,6 +161,7 @@ export default () => {
   }
 
   const stopStreamFetch = () => {
+    loading() && setLoading(false)
     if (controller()) {
       controller().abort()
       archiveCurrentMessage()
